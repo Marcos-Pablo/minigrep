@@ -2,9 +2,7 @@ use minigrep::{search, search_case_insensitive};
 use std::{env, error::Error, fs, process};
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let config = Config::build(&args).unwrap_or_else(|err| {
+    let config = Config::build(env::args()).unwrap_or_else(|err| {
         eprintln!("Problem parsing arguments: {err}");
         process::exit(1);
     });
@@ -18,15 +16,15 @@ fn main() {
 fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let contents = fs::read_to_string(config.file_path)?;
 
-    let results = if config.ignore_case {
-        search_case_insensitive(&config.query, &contents)
+    if config.ignore_case {
+        for line in search_case_insensitive(&config.query, &contents) {
+            println!("{line}");
+        }
     } else {
-        search(&config.query, &contents)
+        for line in search(&config.query, &contents) {
+            println!("{line}");
+        }
     };
-
-    for line in results {
-        println!("{line}");
-    }
 
     Ok(())
 }
@@ -38,17 +36,22 @@ struct Config {
 }
 
 impl Config {
-    fn build(args: &[String]) -> Result<Config, &'static str> {
-        if args.len() < 3 {
-            return Err("not enough arguments");
-        }
+    fn build(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
+        args.next();
 
-        let query = args[1].clone();
-        let file_path = args[2].clone();
+        let query = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a query string"),
+        };
 
-        let ignore_case = match args.get(3).map(String::as_str) {
-            Some("case-insensitive") => true,
-            Some("case-sensitive") => false,
+        let file_path = match args.next() {
+            Some(arg) => arg,
+            None => return Err("Didn't get a file path"),
+        };
+
+        let ignore_case = match args.next() {
+            Some(arg) if arg == "case-insensitive" => true,
+            Some(arg) if arg == "case-sensitive" => false,
             _ => env::var("IGNORE_CASE").is_ok(),
         };
 
